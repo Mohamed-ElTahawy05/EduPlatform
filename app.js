@@ -21,7 +21,7 @@ const quizRouter = require('./routes/quizRoutes');
 const questionRouter = require('./routes/questionRoutes');
 
 const app = express();
-
+app.set('trust proxy', 1);
 // 1) GLOBAL MIDDLEWARES
 app.use(cors());
 // Set security HTTP headers
