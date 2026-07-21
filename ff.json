@@ -1,0 +1,95 @@
+{
+  "grades": [
+    {
+      "id": 1,
+      "name": "الصف الأول",
+      "subjects": [
+        {
+          "id": 101,
+          "name": "اللغة العربية",
+          "teacher": "أحمد محمد",
+          "videos": [
+            {
+              "id": 1,
+              "title": "الدرس الأول",
+              "description": "شرح الوحدة الأولى",
+              "duration": "25:30",
+              "videoUrl": "videos/arabic-lesson-1.mp4",
+              "pdf": "files/arabic-lesson-1.pdf",
+              "isFree": true
+            },
+            {
+              "id": 2,
+              "title": "الدرس الثاني",
+              "description": "شرح الوحدة الثانية",
+              "duration": "32:15",
+              "videoUrl": "videos/arabic-lesson-2.mp4",
+              "pdf": "files/arabic-lesson-2.pdf",
+              "isFree": false
+            }
+          ]
+        },
+        {
+          "id": 102,
+          "name": "الرياضيات",
+          "teacher": "محمد علي",
+          "videos": []
+        },
+        {
+          "id": 103,
+          "name": "اللغة الإنجليزية",
+          "teacher": "سارة أحمد",
+          "videos": []
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "الصف الثاني",
+      "subjects": [
+        {
+          "id": 201,
+          "name": "اللغة العربية",
+          "teacher": "أحمد محمد",
+          "videos": []
+        },
+        {
+          "id": 202,
+          "name": "الرياضيات",
+          "teacher": "محمد علي",
+          "videos": []
+        },
+        {
+          "id": 203,
+          "name": "اللغة الإنجليزية",
+          "teacher": "سارة أحمد",
+          "videos": []
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "الصف الثالث",
+      "subjects": [
+        {
+          "id": 301,
+          "name": "اللغة العربية",
+          "teacher": "أحمد محمد",
+          "videos": []
+        },
+        {
+          "id": 302,
+          "name": "الرياضيات",
+          "teacher": "محمد علي",
+          "videos": []
+        },
+        {
+          "id": 303,
+          "name": "اللغة الإنجليزية",
+          "teacher": "سارة أحمد",
+          "videos": []
+        }
+      ]
+    }
+  ]
+}
