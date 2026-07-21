@@ -44,13 +44,19 @@ exports.login = catchAsync(async (req, res, next) => {
 
     const user = await User.findOne({ phone }).select('+password');
 
-    console.log("USER:", user);
+    console.log("USER FOUND:", !!user);
 
-    if (!user || !(await user.correctPassword(password, user.password))) {
-        return next(new ApiError('Incorrect phone number or password', 401));
+    if (!user) {
+        return next(new ApiError('User not found', 401));
     }
 
-    console.log("PASSWORD OK");
+    const correct = await user.correctPassword(password, user.password);
+
+    console.log("PASSWORD RESULT:", correct);
+
+    if (!correct) {
+        return next(new ApiError('Incorrect phone number or password', 401));
+    }
 
     createSendToken(user, 200, res);
 });
