@@ -11,7 +11,7 @@ const filterObj = (obj, ...allowedFields) => {
     return newObj;
 };
 
-exports.getAllUsers = factory.getAll(User);
+exports.getAllUsers = factory.getAll(User); 
 
 exports.updateMe = catchAsync(async (req, res, next) => {
     if (req.body.password || req.body.confirmPassword) {

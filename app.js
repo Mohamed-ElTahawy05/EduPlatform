@@ -16,6 +16,9 @@ const courseRouter = require('./routes/courseRoutes');
 const lessonRouter = require('./routes/lessonRoutes');
 const authRouter = require('./routes/authRoutes');
 const userRouter = require('./routes/userRoutes');
+const adminRouter = require('./routes/adminRoutes');
+const quizRouter = require('./routes/quizRoutes');
+const questionRouter = require('./routes/questionRoutes');
 
 const app = express();
 
@@ -53,7 +56,8 @@ app.use(hpp({
     whitelist: [
         'duration', 'marks', 'NumberQuestions'
     ]
-}));
+}
+));
 
 // Compress responses
 app.use(compression());
@@ -61,9 +65,12 @@ app.use(compression());
 // 2) ROUTES
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/user', userRouter);
+app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/grades', gradeRouter);
 app.use('/api/v1/courses', courseRouter);
 app.use('/api/v1/lessons', lessonRouter);
+app.use('/api/v1/quizzes', quizRouter);
+app.use('/api/v1/questions', questionRouter);
 
 app.use((req, res, next) => {
     next(new ApiError(`Can't find ${req.originalUrl} on this server!`, 404));
