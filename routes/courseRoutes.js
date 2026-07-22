@@ -9,7 +9,7 @@ router
     .get(courseController.getAllCourses)
     .post(
         authController.protect,
-        authController.allowedTo('admin'),
+        authController.allowedTo('admin', 'teacher'),
         courseController.createCourse
     );
 
@@ -18,12 +18,12 @@ router
     .get(courseController.getCourse)
     .patch(
         authController.protect,
-        authController.allowedTo('admin'),
+        authController.allowedTo('admin', 'teacher'),
         courseController.updateCourse
     )
     .delete(
         authController.protect,
-        authController.allowedTo('admin'),
+        authController.allowedTo('admin', 'teacher'),
         courseController.deleteCourse
     );
 

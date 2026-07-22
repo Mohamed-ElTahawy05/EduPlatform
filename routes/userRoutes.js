@@ -6,6 +6,8 @@ const router = express.Router();
 
 router.use(authController.protect);
 
+router.get('/me', userController.getMe, userController.getUser);
+router.get('/profile', userController.getMe, userController.getUser);
 router.patch('/update-password', authController.updatePassword);
 router.patch('/update-me', userController.updateMe);
 router.delete('/delete-me', userController.deleteMe);

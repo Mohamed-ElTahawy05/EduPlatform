@@ -23,10 +23,14 @@ const createSendToken = (user, statusCode, res) => {
         token,
         data: {
             user: {
+                id: user._id,
+                _id: user._id,
                 name: user.name,
                 fullname: user.fullname,
                 phone: user.phone,
+                email: user.email,
                 grade: user.grade,
+                role: user.role
             }
         }
     });
