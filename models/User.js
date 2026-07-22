@@ -16,19 +16,7 @@ const userSchema = new mongoose.Schema(
             trim: true,
         },
 
-        email: {
-            type: String,
-            required: false,
-            unique: true,
-            sparse: true,
-            lowercase: true,
-            validate: {
-                validator: function(v) {
-                    return !v || validator.isEmail(v);
-                },
-                message: 'Please provide a valid email'
-            }
-        },
+        
 
         phone: {
             type: String,
