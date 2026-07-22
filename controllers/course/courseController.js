@@ -7,15 +7,9 @@ exports.createCourse = factory.createOne(Course);
 exports.getAllCourses = catchAsync(async (req, res, next) => {
     const courses = await Course.find();
 
-    const course = courses[0];
-
-    const teacher = await User.findById(course.teacher);
-
-    console.log("COURSE TEACHER ID:", course.teacher);
-    console.log("FOUND TEACHER:", teacher);
-
     res.status(200).json({
         status: "success",
+        results: courses.length,
         data: {
             data: courses
         }
