@@ -28,6 +28,7 @@ const createSendToken = (user, statusCode, res) => {
                 name: user.name,
                 fullname: user.fullname,
                 phone: user.phone,
+                email: user.email,
                 grade: user.grade,
                 role: user.role
             }
