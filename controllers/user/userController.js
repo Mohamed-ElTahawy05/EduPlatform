@@ -24,7 +24,7 @@ exports.updateMe = catchAsync(async (req, res, next) => {
         return next(new ApiError('This route is not for password updates. Please use /update-password.', 400));
     }
 
-    const filteredBody = filterObj(req.body, 'name', 'familyName', 'email', 'phone', 'academicYear');
+    const filteredBody = filterObj(req.body, 'name', 'fullname', 'phone', 'grade');
 
     const updatedUser = await User.findByIdAndUpdate(req.user.id, filteredBody, {
         new: true,
