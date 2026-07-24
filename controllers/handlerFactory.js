@@ -46,7 +46,7 @@ exports.createOne = Model =>
         });
     });
 
-exports.getOne = (Model, popOptions) =>
+exports.getOne = (Model, popOptions, incrementField) =>
     catchAsync(async (req, res, next) => {
         let query = Model.findById(req.params.id);
         if (popOptions) query = query.populate(popOptions);
@@ -54,6 +54,14 @@ exports.getOne = (Model, popOptions) =>
 
         if (!doc) {
             return next(new ApiError('No document found with that ID', 404));
+        }
+
+        if (incrementField) {
+            doc[incrementField] = (doc[incrementField] || 0) + 1;
+            await Model.updateOne(
+                { _id: doc._id },
+                { $inc: { [incrementField]: 1 } }
+            );
         }
 
         res.status(200).json({

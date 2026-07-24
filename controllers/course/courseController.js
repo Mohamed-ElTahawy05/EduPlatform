@@ -1,6 +1,5 @@
 const Course = require('../../models/Course');
 const factory = require('../handlerFactory');
-const User = require('../../models/User');
 const catchAsync = require('../../utils/catchAsync');
 
 exports.createCourse = factory.createOne(Course);
@@ -15,6 +14,6 @@ exports.getAllCourses = catchAsync(async (req, res, next) => {
         }
     });
 });
-exports.getCourse = factory.getOne(Course, { path: 'lessons' });
+exports.getCourse = factory.getOne(Course, { path: 'lessons' }, 'views');
 exports.updateCourse = factory.updateOne(Course);
 exports.deleteCourse = factory.deleteOne(Course);

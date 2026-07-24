@@ -27,10 +27,10 @@ const userSchema = new mongoose.Schema(
         },
 
         grade: {
-            type: String,
-            required: [true, 'Please provide your grade'],
-        },
-
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Grade',
+    required: [true, 'Please provide your grade'],
+},
         role: {
             type: String,
             enum: ['user', 'admin', 'teacher', 'student'],

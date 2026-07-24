@@ -1,10 +1,13 @@
 const express = require('express');
 const authController = require('../controllers/auth/authController');
 const userController = require('../controllers/user/userController');
+const homepageController = require('../controllers/user/homepageController');
 
 const router = express.Router();
 
 router.use(authController.protect);
+
+router.get('/homepage', homepageController.getHomepage);
 
 router.get('/me', userController.getMe, userController.getUser);
 router.get('/profile', userController.getMe, userController.getUser);

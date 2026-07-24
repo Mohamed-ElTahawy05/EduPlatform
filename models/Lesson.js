@@ -28,6 +28,13 @@ const lessonSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Course',
         required: [true, 'Please provide a course for the lesson'],
+    },views: {
+    type: Number,
+    default: 0
+    },status: {
+        type: String,
+        enum: ['draft', 'published'],
+        default: 'draft'
     },
 },
 {
