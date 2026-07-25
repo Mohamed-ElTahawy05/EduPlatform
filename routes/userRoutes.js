@@ -2,6 +2,7 @@ const express = require('express');
 const authController = require('../controllers/auth/authController');
 const userController = require('../controllers/user/userController');
 const homepageController = require('../controllers/user/homepageController');
+const myLessonsController = require('../controllers/user/myLessonsController');
 
 const router = express.Router();
 
@@ -18,4 +19,11 @@ router.delete('/delete-me', userController.deleteMe);
 router.use(authController.allowedTo('admin'));
 router.get('/getAllUsers', userController.getAllUsers);
 
+router.get('/homepage', homepageController.getHomepage);
+router.get('/my-lessons', myLessonsController.getMyLessons);
+
 module.exports = router;
+
+
+
+// ...
