@@ -45,8 +45,11 @@ controllers/
     authController.js
   course/
     courseController.js
+    enrollmentController.js
   user/
     adminController.js
+    homepageController.js
+    myLessonsController.js
     userController.js
   errorController.js
   gradeController.js
@@ -56,8 +59,10 @@ controllers/
   quizController.js
 models/
   Course.js
+  Enrollment.js
   Grade.js
   Lesson.js
+  LessonProgress.js
   Question.js
   Quiz.js
   QuizResult.js
@@ -90,125 +95,53 @@ test.js
 <files>
 This section contains the contents of the repository's files.
 
-<file path="migrateUserGrades.js">
-/**
- * Migration Script: Convert User.grade from String to Grade ObjectId
- *
- * شغّل السكريبت ده مرة واحدة بس، وقبل ما تعمل deploy للـ Schema الجديد بتاع User
- * (أو حتى لو الـ Schema اتغير خلاص، السكريبت بيشتغل على الـ collection مباشرة
- * من غير ما يعدي على الـ Mongoose Schema، فمش هيحصل أي Cast Error).
- *
- * طريقة التشغيل من الـ terminal:
- *   node migrateUserGrades.js
- *
- * تأكد إنك حاطط الملف ده في نفس مكان config.env أو عدّل الـ path تحت.
- */
+<file path="controllers/course/enrollmentController.js">
+const Course = require('../../models/Course');
+const Enrollment = require('../../models/Enrollment');
+const catchAsync = require('../../utils/catchAsync');
+const ApiError = require('../../utils/ApiError');
 
-const dotenv = require('dotenv');
-const mongoose = require('mongoose');
+// POST /api/v1/courses/:id/enroll
+exports.enrollInCourse = catchAsync(async (req, res, next) => {
+    const courseId = req.params.id;
+    const studentId = req.user.id;
 
-dotenv.config({ path: './config.env' });
-
-// إزالة أي فروق بين "ي" العادية و"ى" المقصورة، ومسافات زيادة
-const normalizeArabic = (str) => {
-    if (!str) return '';
-    return str
-        .trim()
-        .replace(/ى/g, 'ي')
-        .replace(/\s+/g, ' ');
-};
-
-const runMigration = async () => {
-    try {
-        console.log('Connecting to MongoDB...');
-        await mongoose.connect(process.env.MONGODB_URI);
-        console.log('Connected successfully.\n');
-
-        const db = mongoose.connection.db;
-        const usersCollection = db.collection('users');
-        const gradesCollection = db.collection('grades');
-
-        // 1) هات كل الصفوف الموجودة فعلاً في كولكشن Grade
-        const grades = await gradesCollection.find({}).toArray();
-
-        if (grades.length === 0) {
-            console.log('⚠️  لا يوجد أي مستندات في كولكشن Grade. أضف الصفوف أولاً ثم أعد المحاولة.');
-            await mongoose.disconnect();
-            return;
-        }
-
-        console.log(`تم العثور على ${grades.length} صف/صفوف في كولكشن Grade:`);
-        grades.forEach(g => console.log(`  - ${g.name} (${g._id})`));
-        console.log('');
-
-        // خريطة: الاسم المُطبَّع -> _id بتاع الصف
-        const gradeMap = new Map();
-        grades.forEach(g => {
-            gradeMap.set(normalizeArabic(g.name), g._id);
-        });
-
-        // 2) هات كل اليوزرز
-        const users = await usersCollection.find({}).toArray();
-        console.log(`تم العثور على ${users.length} يوزر/يوزرز.\n`);
-
-        let updated = 0;
-        let skippedAlreadyObjectId = 0;
-        let failed = [];
-
-        for (const user of users) {
-            const currentGrade = user.grade;
-
-            // لو الحقل خالص مش موجود
-            if (!currentGrade) {
-                failed.push({ id: user._id, name: user.name, reason: 'لا يوجد حقل grade' });
-                continue;
-            }
-
-            // لو خلاص اتحول قبل كده لـ ObjectId (يعني السكريبت اتشغل مرتين بالغلط)
-            if (currentGrade instanceof mongoose.Types.ObjectId) {
-                skippedAlreadyObjectId++;
-                continue;
-            }
-
-            const normalized = normalizeArabic(String(currentGrade));
-            const matchedGradeId = gradeMap.get(normalized);
-
-            if (!matchedGradeId) {
-                failed.push({ id: user._id, name: user.name, reason: `لا يوجد صف مطابق لـ "${currentGrade}"` });
-                continue;
-            }
-
-            await usersCollection.updateOne(
-                { _id: user._id },
-                { $set: { grade: matchedGradeId } }
-            );
-
-            console.log(`✅ ${user.name} : "${currentGrade}" -> ${matchedGradeId}`);
-            updated++;
-        }
-
-        console.log('\n--- ملخص النتيجة ---');
-        console.log(`تم التحديث بنجاح : ${updated}`);
-        console.log(`متجاهَل (كان ObjectId بالفعل) : ${skippedAlreadyObjectId}`);
-        console.log(`فشل : ${failed.length}`);
-
-        if (failed.length > 0) {
-            console.log('\n⚠️  اليوزرز اللي محتاجين تعديل يدوي:');
-            failed.forEach(f => {
-                console.log(`  - ${f.name} (${f.id}): ${f.reason}`);
-            });
-            console.log('\nراجع أسماء الصفوف يدويًا في MongoDB Atlas وصحّح القيمة بنفسك لليوزرز دول.');
-        }
-
-        await mongoose.disconnect();
-        console.log('\nتم قطع الاتصال. انتهى السكريبت.');
-    } catch (err) {
-        console.error('حصل خطأ أثناء تشغيل السكريبت:', err);
-        process.exit(1);
+    const course = await Course.findById(courseId);
+    if (!course) {
+        return next(new ApiError('No course found with that ID', 404));
     }
-};
 
-runMigration();
+    // تأكد إن الطالب مش مشترك خلاص في نفس الكورس
+    const existing = await Enrollment.findOne({ student: studentId, course: courseId });
+    if (existing) {
+        return next(new ApiError('You are already enrolled in this course', 400));
+    }
+
+    const enrollment = await Enrollment.create({
+        student: studentId,
+        course: courseId,
+    });
+
+    res.status(201).json({
+        status: 'success',
+        data: {
+            enrollment,
+        },
+    });
+});
+
+// GET /api/v1/courses/my-enrollments
+exports.getMyEnrollments = catchAsync(async (req, res, next) => {
+    const enrollments = await Enrollment.find({ student: req.user.id }).populate('course');
+
+    res.status(200).json({
+        status: 'success',
+        results: enrollments.length,
+        data: {
+            enrollments,
+        },
+    });
+});
 </file>
 
 <file path="controllers/user/adminController.js">
@@ -245,6 +178,60 @@ exports.getReports = async (req, res) => {
 };
 </file>
 
+<file path="controllers/user/homepageController.js">
+const Course = require('../../models/Course');
+const Lesson = require('../../models/Lesson');
+const Enrollment = require('../../models/Enrollment');
+const LessonProgress = require('../../models/LessonProgress');
+const catchAsync = require('../../utils/catchAsync');
+
+// GET /api/v1/user/homepage
+exports.getHomepage = catchAsync(async (req, res, next) => {
+    const studentId = req.user.id;
+
+    // 1) هات كل الكورسات اللي الطالب مشترك فيها
+    const enrollments = await Enrollment.find({ student: studentId }).select('course');
+    const enrolledCourseIds = enrollments.map(e => e.course);
+
+    // 2) هات كل الدروس (lessons) اللي تتبع الكورسات دي
+    const allLessons = await Lesson.find({ course: { $in: enrolledCourseIds } });
+
+    const publishedLessons = allLessons.filter(l => l.status === 'published');
+    const comingSoonLessons = allLessons.filter(l => l.status === 'draft');
+
+    const publishedLessonIds = publishedLessons.map(l => l._id.toString());
+
+    // 3) هات كل سجلات تقدم الطالب اللي بتخص الدروس المنشورة دي بس
+    const progressRecords = await LessonProgress.find({
+        student: studentId,
+        lesson: { $in: publishedLessonIds },
+    });
+
+    const completedCount = progressRecords.length;
+    const totalPublished = publishedLessons.length;
+    const remainingCount = totalPublished - completedCount;
+    const comingSoonCount = comingSoonLessons.length;
+
+    const progressPercentage =
+        totalPublished === 0 ? 0 : Math.round((completedCount / totalPublished) * 100);
+
+    res.status(200).json({
+        status: 'success',
+        data: {
+            welcomeMessage: `أهلًا يا ${req.user.name}`,
+            today: new Date(),
+            stats: {
+                totalLessons: totalPublished,
+                completedLessons: completedCount,
+                remainingLessons: remainingCount,
+                comingSoonLessons: comingSoonCount,
+                progressPercentage,
+            },
+        },
+    });
+});
+</file>
+
 <file path="controllers/gradeController.js">
 const Grade = require('../models/Grade');
 const factory = require('./handlerFactory');
@@ -272,113 +259,6 @@ exports.getAllGrades = catchAsync(async (req, res, next) => {
         }
     });
 });
-</file>
-
-<file path="controllers/handlerFactory.js">
-const catchAsync = require('../utils/catchAsync');
-const ApiError = require('../utils/ApiError');
-
-exports.deleteOne = Model =>
-    catchAsync(async (req, res, next) => {
-        const doc = await Model.findByIdAndDelete(req.params.id);
-
-        if (!doc) {
-            return next(new ApiError('No document found with that ID', 404));
-        }
-
-        res.status(204).json({
-            status: 'success',
-            data: null
-        });
-    });
-
-exports.updateOne = Model => 
-    catchAsync(async (req, res, next) => {
-        const doc = await Model.findByIdAndUpdate(req.params.id, req.body, {
-            new: true,
-            runValidators: true
-        });
-
-        if (!doc) {
-            return next(new ApiError('No document found with that ID', 404));
-        }
-
-        res.status(200).json({
-            status: 'success',
-            data: {
-                data: doc
-            }
-        });
-    });
-
-exports.createOne = Model =>
-    catchAsync(async (req, res, next) => {
-        const doc = await Model.create(req.body);
-
-        res.status(201).json({
-            status: 'success',
-            data: {
-                data: doc
-            }
-        });
-    });
-
-exports.getOne = (Model, popOptions, incrementField) =>
-    catchAsync(async (req, res, next) => {
-        let query = Model.findById(req.params.id);
-        if (popOptions) query = query.populate(popOptions);
-        const doc = await query;
-
-        if (!doc) {
-            return next(new ApiError('No document found with that ID', 404));
-        }
-
-        if (incrementField) {
-            doc[incrementField] = (doc[incrementField] || 0) + 1;
-            await Model.updateOne(
-                { _id: doc._id },
-                { $inc: { [incrementField]: 1 } }
-            );
-        }
-
-        res.status(200).json({
-            status: 'success',
-            data: {
-                data: doc
-            }
-        });
-    });
-
-exports.getAll = (Model, popOptions) =>
-    catchAsync(async (req, res, next) => {
-        let filter = {};
-        if (req.params.courseId) filter = { course: req.params.courseId };
-        if (req.params.gradeId) filter = { grade: req.params.gradeId };
-
-        let query = Model.find(filter);
-        if (popOptions) query = query.populate(popOptions);
-
-        const docs = await query;
-
-        res.status(200).json({
-            status: 'success',
-            results: docs.length,
-            data: {
-                data: docs
-            }
-        });
-    });
-</file>
-
-<file path="controllers/lessonController.js">
-const Lesson = require('../models/Lesson');
-const factory = require('./handlerFactory');
-exports.getLesson = factory.getOne(Lesson, null, 'views');
-exports.createLesson = factory.createOne(Lesson);
-exports.getAllLessons = factory.getAll(Lesson);
-exports.getLesson = factory.getOne(Lesson);
-exports.updateLesson = factory.updateOne(Lesson);
-exports.deleteLesson = factory.deleteOne(Lesson);
 </file>
 
 <file path="controllers/questionController.js">
@@ -437,48 +317,35 @@ exports.getMyQuizResults = async (req, res) => {
 };
 </file>
 
-<file path="models/Course.js">
+<file path="models/Enrollment.js">
 const mongoose = require('mongoose');
 
-const courseSchema = new mongoose.Schema({
-    title: {
-        type: String,
-        required: [true, 'Please provide a title for the course'],
-        trim: true,
+const enrollmentSchema = new mongoose.Schema(
+    {
+        student: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: [true, 'Enrollment must belong to a student'],
+        },
+        course: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Course',
+            required: [true, 'Enrollment must belong to a course'],
+        },
+        enrolledAt: {
+            type: Date,
+            default: Date.now,
+        },
     },
-    description: {
-        type: String,
-        required: [true, 'Please provide a description for the course'],
-        trim: true,
-    },
-    grade: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Grade",
-        required: [true, 'Course must belong to a Grade']
-    },
-    teacher: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: [true, 'Course must belong to a Teacher']
-    },views: {
-    type: Number,
-    default: 0
-},
-},
-{
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-}); 
+    {
+        timestamps: true,
+    }
+);
 
-// Virtual populate for lessons
-courseSchema.virtual('lessons', {
-    ref: 'Lesson',
-    foreignField: 'course',
-    localField: '_id'
-});
+// طالب واحد ميقدرش يشترك مرتين في نفس الكورس
+enrollmentSchema.index({ student: 1, course: 1 }, { unique: true });
 
-module.exports = mongoose.model('Course', courseSchema);
+module.exports = mongoose.model('Enrollment', enrollmentSchema);
 </file>
 
 <file path="models/Grade.js">
@@ -514,51 +381,40 @@ gradeSchema.set('toObject', { virtuals: true });
 module.exports = mongoose.model('Grade', gradeSchema);
 </file>
 
-<file path="models/Lesson.js">
+<file path="models/LessonProgress.js">
 const mongoose = require('mongoose');
 
-const lessonSchema = new mongoose.Schema({
-    title: {
-        type: String,
-        required: [true, 'Please provide a title for the lesson'],
-        trim: true,
+const lessonProgressSchema = new mongoose.Schema(
+    {
+        student: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: [true, 'Progress must belong to a student'],
+        },
+        lesson: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Lesson',
+            required: [true, 'Progress must belong to a lesson'],
+        },
+        course: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Course',
+            required: [true, 'Progress must belong to a course'],
+        },
+        completedAt: {
+            type: Date,
+            default: Date.now,
+        },
     },
-    description: {
-        type: String,
-        required: [true, 'Please provide a description for the lesson'],
-        trim: true,
-    },
-    duration: {
-        type: String,
-    },
-    videoUrl: {
-        type: String,
-    },
-    pdf: {
-        type: String,
-    },
-    isFree: {
-        type: Boolean,
-        default: false
-    },
-    course: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Course',
-        required: [true, 'Please provide a course for the lesson'],
-    },views: {
-    type: Number,
-    default: 0
-    },status: {
-        type: String,
-        enum: ['draft', 'published'],
-        default: 'draft'
-    },
-},
-{
-    timestamps: true,
-});
+    {
+        timestamps: true,
+    }
+);
 
-module.exports = mongoose.model('Lesson', lessonSchema);
+// طالب واحد ميقدرش يكون عنده أكتر من سجل تقدم لنفس الدرس
+lessonProgressSchema.index({ student: 1, lesson: 1 }, { unique: true });
+
+module.exports = mongoose.model('LessonProgress', lessonProgressSchema);
 </file>
 
 <file path="models/Question.js">
@@ -890,43 +746,396 @@ Thumbs.db
 }
 </file>
 
-<file path="package.json">
+<file path="migrateUserGrades.js">
+/**
+ * Migration Script: Convert User.grade from String to Grade ObjectId
+ *
+ * شغّل السكريبت ده مرة واحدة بس، وقبل ما تعمل deploy للـ Schema الجديد بتاع User
+ * (أو حتى لو الـ Schema اتغير خلاص، السكريبت بيشتغل على الـ collection مباشرة
+ * من غير ما يعدي على الـ Mongoose Schema، فمش هيحصل أي Cast Error).
+ *
+ * طريقة التشغيل من الـ terminal:
+ *   node migrateUserGrades.js
+ *
+ * تأكد إنك حاطط الملف ده في نفس مكان config.env أو عدّل الـ path تحت.
+ */
+
+const dotenv = require('dotenv');
+const mongoose = require('mongoose');
+
+dotenv.config({ path: './config.env' });
+
+// إزالة أي فروق بين "ي" العادية و"ى" المقصورة، ومسافات زيادة
+const normalizeArabic = (str) => {
+    if (!str) return '';
+    return str
+        .trim()
+        .replace(/ى/g, 'ي')
+        .replace(/\s+/g, ' ');
+};
+
+const runMigration = async () => {
+    try {
+        console.log('Connecting to MongoDB...');
+        await mongoose.connect(process.env.MONGODB_URI);
+        console.log('Connected successfully.\n');
+
+        const db = mongoose.connection.db;
+        const usersCollection = db.collection('users');
+        const gradesCollection = db.collection('grades');
+
+        // 1) هات كل الصفوف الموجودة فعلاً في كولكشن Grade
+        const grades = await gradesCollection.find({}).toArray();
+
+        if (grades.length === 0) {
+            console.log('⚠️  لا يوجد أي مستندات في كولكشن Grade. أضف الصفوف أولاً ثم أعد المحاولة.');
+            await mongoose.disconnect();
+            return;
+        }
+
+        console.log(`تم العثور على ${grades.length} صف/صفوف في كولكشن Grade:`);
+        grades.forEach(g => console.log(`  - ${g.name} (${g._id})`));
+        console.log('');
+
+        // خريطة: الاسم المُطبَّع -> _id بتاع الصف
+        const gradeMap = new Map();
+        grades.forEach(g => {
+            gradeMap.set(normalizeArabic(g.name), g._id);
+        });
+
+        // 2) هات كل اليوزرز
+        const users = await usersCollection.find({}).toArray();
+        console.log(`تم العثور على ${users.length} يوزر/يوزرز.\n`);
+
+        let updated = 0;
+        let skippedAlreadyObjectId = 0;
+        let failed = [];
+
+        for (const user of users) {
+            const currentGrade = user.grade;
+
+            // لو الحقل خالص مش موجود
+            if (!currentGrade) {
+                failed.push({ id: user._id, name: user.name, reason: 'لا يوجد حقل grade' });
+                continue;
+            }
+
+            // لو خلاص اتحول قبل كده لـ ObjectId (يعني السكريبت اتشغل مرتين بالغلط)
+            if (currentGrade instanceof mongoose.Types.ObjectId) {
+                skippedAlreadyObjectId++;
+                continue;
+            }
+
+            const normalized = normalizeArabic(String(currentGrade));
+            const matchedGradeId = gradeMap.get(normalized);
+
+            if (!matchedGradeId) {
+                failed.push({ id: user._id, name: user.name, reason: `لا يوجد صف مطابق لـ "${currentGrade}"` });
+                continue;
+            }
+
+            await usersCollection.updateOne(
+                { _id: user._id },
+                { $set: { grade: matchedGradeId } }
+            );
+
+            console.log(`✅ ${user.name} : "${currentGrade}" -> ${matchedGradeId}`);
+            updated++;
+        }
+
+        console.log('\n--- ملخص النتيجة ---');
+        console.log(`تم التحديث بنجاح : ${updated}`);
+        console.log(`متجاهَل (كان ObjectId بالفعل) : ${skippedAlreadyObjectId}`);
+        console.log(`فشل : ${failed.length}`);
+
+        if (failed.length > 0) {
+            console.log('\n⚠️  اليوزرز اللي محتاجين تعديل يدوي:');
+            failed.forEach(f => {
+                console.log(`  - ${f.name} (${f.id}): ${f.reason}`);
+            });
+            console.log('\nراجع أسماء الصفوف يدويًا في MongoDB Atlas وصحّح القيمة بنفسك لليوزرز دول.');
+        }
+
+        await mongoose.disconnect();
+        console.log('\nتم قطع الاتصال. انتهى السكريبت.');
+    } catch (err) {
+        console.error('حصل خطأ أثناء تشغيل السكريبت:', err);
+        process.exit(1);
+    }
+};
+
+runMigration();
+</file>
+
+<file path="controllers/user/myLessonsController.js">
+const Course = require('../../models/Course');
+const Lesson = require('../../models/Lesson');
+const Enrollment = require('../../models/Enrollment');
+const LessonProgress = require('../../models/LessonProgress');
+const catchAsync = require('../../utils/catchAsync');
+
+// GET /api/v1/user/my-lessons
+exports.getMyLessons = catchAsync(async (req, res, next) => {
+    const studentId = req.user.id;
+    const studentGrade = req.user.grade;
+
+    // 1) هات كل الكورسات (الأبواب) بتاعة صف الطالب
+    const courses = await Course.find({ grade: studentGrade }).sort('createdAt');
+
+    // 2) هات الكورسات اللي الطالب مشترك فيها فعلاً
+    const enrollments = await Enrollment.find({ student: studentId }).select('course');
+    const enrolledCourseIds = new Set(enrollments.map(e => e.course.toString()));
+
+    // 3) هات كل سجلات تقدم الطالب مرة واحدة (بدل ما نسأل الداتابيز جوه اللوب)
+    const progressRecords = await LessonProgress.find({ student: studentId });
+    const completedLessonIds = new Set(progressRecords.map(p => p.lesson.toString()));
+
+    // 4) لكل كورس، هات دروسه المنشورة وحدد حالة كل درس
+    const coursesWithLessons = await Promise.all(
+        courses.map(async (course) => {
+            const lessons = await Lesson.find({
+                course: course._id,
+                status: 'published',
+            }).sort('createdAt');
+
+            const lessonsData = lessons.map(lesson => ({
+                _id: lesson._id,
+                title: lesson.title,
+                duration: lesson.duration,
+                isFree: lesson.isFree,
+                completed: completedLessonIds.has(lesson._id.toString()),
+            }));
+
+            const completedCount = lessonsData.filter(l => l.completed).length;
+
+            return {
+                _id: course._id,
+                title: course.title,
+                description: course.description,
+                locked: !enrolledCourseIds.has(course._id.toString()),
+                totalLessons: lessonsData.length,
+                completedLessons: completedCount,
+                lessons: lessonsData,
+            };
+        })
+    );
+
+    // 5) كارت "استكمال المشاهدة" = آخر درس فتحه الطالب (الأحدث زمنيًا)
+    let continueWatching = null;
+    if (progressRecords.length > 0) {
+        const latestProgress = progressRecords.sort(
+            (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        )[0];
+
+        const lastLesson = await Lesson.findById(latestProgress.lesson);
+        const lastCourse = lastLesson ? await Course.findById(lastLesson.course) : null;
+
+        if (lastLesson && lastCourse) {
+            continueWatching = {
+                lessonId: lastLesson._id,
+                lessonTitle: lastLesson.title,
+                courseId: lastCourse._id,
+                courseTitle: lastCourse.title,
+                lastOpenedAt: latestProgress.createdAt,
+            };
+        }
+    }
+
+    res.status(200).json({
+        status: 'success',
+        data: {
+            continueWatching,
+            courses: coursesWithLessons,
+        },
+    });
+});
+</file>
+
+<file path="controllers/handlerFactory.js">
+const catchAsync = require('../utils/catchAsync');
+const ApiError = require('../utils/ApiError');
+
+exports.deleteOne = Model =>
+    catchAsync(async (req, res, next) => {
+        const doc = await Model.findByIdAndDelete(req.params.id);
+
+        if (!doc) {
+            return next(new ApiError('No document found with that ID', 404));
+        }
+
+        res.status(204).json({
+            status: 'success',
+            data: null
+        });
+    });
+
+exports.updateOne = Model => 
+    catchAsync(async (req, res, next) => {
+        const doc = await Model.findByIdAndUpdate(req.params.id, req.body, {
+            new: true,
+            runValidators: true
+        });
+
+        if (!doc) {
+            return next(new ApiError('No document found with that ID', 404));
+        }
+
+        res.status(200).json({
+            status: 'success',
+            data: {
+                data: doc
+            }
+        });
+    });
+
+exports.createOne = Model =>
+    catchAsync(async (req, res, next) => {
+        const doc = await Model.create(req.body);
+
+        res.status(201).json({
+            status: 'success',
+            data: {
+                data: doc
+            }
+        });
+    });
+
+exports.getOne = (Model, popOptions, incrementField) =>
+    catchAsync(async (req, res, next) => {
+        let query = Model.findById(req.params.id);
+        if (popOptions) query = query.populate(popOptions);
+        const doc = await query;
+
+        if (!doc) {
+            return next(new ApiError('No document found with that ID', 404));
+        }
+
+        if (incrementField) {
+            doc[incrementField] = (doc[incrementField] || 0) + 1;
+            await Model.updateOne(
+                { _id: doc._id },
+                { $inc: { [incrementField]: 1 } }
+            );
+        }
+
+        res.status(200).json({
+            status: 'success',
+            data: {
+                data: doc
+            }
+        });
+    });
+
+exports.getAll = (Model, popOptions) =>
+    catchAsync(async (req, res, next) => {
+        let filter = {};
+        if (req.params.courseId) filter = { course: req.params.courseId };
+        if (req.params.gradeId) filter = { grade: req.params.gradeId };
+
+        let query = Model.find(filter);
+        if (popOptions) query = query.populate(popOptions);
+
+        const docs = await query;
+
+        res.status(200).json({
+            status: 'success',
+            results: docs.length,
+            data: {
+                data: docs
+            }
+        });
+    });
+</file>
+
+<file path="models/Course.js">
+const mongoose = require('mongoose');
+
+const courseSchema = new mongoose.Schema({
+    title: {
+        type: String,
+        required: [true, 'Please provide a title for the course'],
+        trim: true,
+    },
+    description: {
+        type: String,
+        required: [true, 'Please provide a description for the course'],
+        trim: true,
+    },
+    grade: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Grade",
+        required: [true, 'Course must belong to a Grade']
+    },
+    teacher: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: [true, 'Course must belong to a Teacher']
+    },views: {
+    type: Number,
+    default: 0
+},
+},
 {
-  "name": "eduplatform",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "cloudinary": "^2.10.0",
-    "compression": "^1.8.1",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^4.21.2",
-    "express-mongo-sanitize": "^2.2.0",
-    "express-rate-limit": "^8.5.2",
-    "helmet": "^8.3.0",
-    "hpp": "^0.2.3",
-    "jsonwebtoken": "^9.0.3",
-    "mongoose": "^8.24.1",
-    "morgan": "^1.11.0",
-    "multer": "^2.2.0",
-    "nodemailer": "^9.0.3",
-    "validator": "^13.15.35",
-    "xss-clean": "^0.1.4"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.14"
-  }
-}
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+}); 
+
+// Virtual populate for lessons
+courseSchema.virtual('lessons', {
+    ref: 'Lesson',
+    foreignField: 'course',
+    localField: '_id'
+});
+
+module.exports = mongoose.model('Course', courseSchema);
+</file>
+
+<file path="models/Lesson.js">
+const mongoose = require('mongoose');
+
+const lessonSchema = new mongoose.Schema({
+    title: {
+        type: String,
+        required: [true, 'Please provide a title for the lesson'],
+        trim: true,
+    },
+    description: {
+        type: String,
+        required: [true, 'Please provide a description for the lesson'],
+        trim: true,
+    },
+    duration: {
+        type: String,
+    },
+    videoUrl: {
+        type: String,
+    },
+    pdf: {
+        type: String,
+    },
+    isFree: {
+        type: Boolean,
+        default: false
+    },
+    course: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Course',
+        required: [true, 'Please provide a course for the lesson'],
+    },views: {
+    type: Number,
+    default: 0
+    },status: {
+        type: String,
+        enum: ['draft', 'published'],
+        default: 'draft'
+    },
+},
+{
+    timestamps: true,
+});
+
+module.exports = mongoose.model('Lesson', lessonSchema);
 </file>
 
 <file path="routes/adminRoutes.js">
@@ -955,38 +1164,6 @@ router.delete('/courses/:id', adminController.deleteCourse);
 router.get('/quiz-results', adminController.getAllQuizResults);
 
 router.get('/reports', adminController.getReports);
-
-module.exports = router;
-</file>
-
-<file path="routes/courseRoutes.js">
-const express = require('express');
-const courseController = require('../controllers/course/courseController');
-const authController = require('../controllers/auth/authController');
-
-const router = express.Router();
-
-router.use(authController.protect);
-
-router
-    .route('/')
-    .get(courseController.getAllCourses)
-    .post(
-        authController.allowedTo('admin', 'teacher'),
-        courseController.createCourse
-    );
-
-router
-    .route('/:id')
-    .get(courseController.getCourse)
-    .patch(
-        authController.allowedTo('admin', 'teacher'),
-        courseController.updateCourse
-    )
-    .delete(
-        authController.allowedTo('admin', 'teacher'),
-        courseController.deleteCourse
-    );
 
 module.exports = router;
 </file>
@@ -1057,49 +1234,43 @@ router
 module.exports = router;
 </file>
 
-<file path="routes/userRoutes.js">
-const express = require('express');
-const authController = require('../controllers/auth/authController');
-const userController = require('../controllers/user/userController');
-
-const router = express.Router();
-
-router.use(authController.protect);
-
-router.get('/me', userController.getMe, userController.getUser);
-router.get('/profile', userController.getMe, userController.getUser);
-router.patch('/update-password', authController.updatePassword);
-router.patch('/update-me', userController.updateMe);
-router.delete('/delete-me', userController.deleteMe);
-
-router.use(authController.allowedTo('admin'));
-router.get('/getAllUsers', userController.getAllUsers);
-
-module.exports = router;
-</file>
-
-<file path="controllers/course/courseController.js">
-const Course = require('../../models/Course');
-const factory = require('../handlerFactory');
-const User = require('../../models/User');
-const catchAsync = require('../../utils/catchAsync');
-exports.getCourse = factory.getOne(Course, { path: 'lessons' }, 'views');
-
-exports.createCourse = factory.createOne(Course);
-exports.getAllCourses = catchAsync(async (req, res, next) => {
-    const courses = await Course.find();
-
-    res.status(200).json({
-        status: "success",
-        results: courses.length,
-        data: {
-            data: courses
-        }
-    });
-});
-exports.getCourse = factory.getOne(Course, { path: 'lessons' });
-exports.updateCourse = factory.updateOne(Course);
-exports.deleteCourse = factory.deleteOne(Course);
+<file path="package.json">
+{
+  "name": "eduplatform",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.10.0",
+    "compression": "^1.8.1", 
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "express-mongo-sanitize": "^2.2.0",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.3.0",
+    "hpp": "^0.2.3",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.24.1",
+    "morgan": "^1.11.0",
+    "multer": "^2.2.0",
+    "nodemailer": "^9.0.3",
+    "validator": "^13.15.35",
+    "xss-clean": "^0.1.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
 </file>
 
 <file path="controllers/errorController.js">
@@ -1173,6 +1344,108 @@ module.exports = (err, req, res, next) => {
         sendErrorProd(error, res);
     }
 };
+</file>
+
+<file path="controllers/lessonController.js">
+const Lesson = require('../models/Lesson');
+const LessonProgress = require('../models/LessonProgress');
+const Enrollment = require('../models/Enrollment');
+const factory = require('./handlerFactory');
+const catchAsync = require('../utils/catchAsync');
+const ApiError = require('../utils/ApiError');
+
+exports.createLesson = factory.createOne(Lesson);
+exports.getAllLessons = factory.getAll(Lesson);
+exports.updateLesson = factory.updateOne(Lesson);
+exports.deleteLesson = factory.deleteOne(Lesson);
+
+exports.getLesson = catchAsync(async (req, res, next) => {
+    const lesson = await Lesson.findById(req.params.id);
+
+    if (!lesson) {
+        return next(new ApiError('No document found with that ID', 404));
+    }
+
+    const isPrivileged = req.user && (req.user.role === 'admin' || req.user.role === 'teacher');
+
+    // التحقق من الاشتراك: لازم الطالب يكون مشترك في الكورس، إلا لو الدرس مجاني أو هو أدمن/مدرس
+    if (!isPrivileged && !lesson.isFree) {
+        const enrollment = await Enrollment.findOne({
+            student: req.user.id,
+            course: lesson.course,
+        });
+
+        if (!enrollment) {
+            return next(
+                new ApiError('You must enroll in this course to access this lesson', 403)
+            );
+        }
+    }
+
+    // زيادة عداد المشاهدات
+    await Lesson.updateOne({ _id: lesson._id }, { $inc: { views: 1 } });
+    lesson.views = (lesson.views || 0) + 1;
+
+    // تسجيل تقدم الطالب أوتوماتيك (بس لو مش أدمن/مدرس)
+    if (!isPrivileged) {
+        const alreadyExists = await LessonProgress.findOne({
+            student: req.user.id,
+            lesson: lesson._id,
+        });
+
+        if (!alreadyExists) {
+            await LessonProgress.create({
+                student: req.user.id,
+                lesson: lesson._id,
+                course: lesson.course,
+            });
+        }
+    }
+
+    res.status(200).json({
+        status: 'success',
+        data: {
+            data: lesson,
+        },
+    });
+});
+</file>
+
+<file path="routes/courseRoutes.js">
+const express = require('express');
+const courseController = require('../controllers/course/courseController');
+const enrollmentController = require('../controllers/course/enrollmentController');
+const authController = require('../controllers/auth/authController');
+
+const router = express.Router();
+
+router.use(authController.protect);
+
+router.get('/my-enrollments', enrollmentController.getMyEnrollments);
+
+router
+    .route('/')
+    .get(courseController.getAllCourses)
+    .post(
+        authController.allowedTo('admin', 'teacher'),
+        courseController.createCourse
+    );
+
+router.post('/:id/enroll', enrollmentController.enrollInCourse);
+
+router
+    .route('/:id')
+    .get(courseController.getCourse)
+    .patch(
+        authController.allowedTo('admin', 'teacher'),
+        courseController.updateCourse
+    )
+    .delete(
+        authController.allowedTo('admin', 'teacher'),
+        courseController.deleteCourse
+    );
+
+module.exports = router;
 </file>
 
 <file path="routes/questionRoutes.js">
@@ -1330,6 +1603,28 @@ app.use(globalErrorHandler);
 module.exports = app;
 </file>
 
+<file path="controllers/course/courseController.js">
+const Course = require('../../models/Course');
+const factory = require('../handlerFactory');
+const catchAsync = require('../../utils/catchAsync');
+
+exports.createCourse = factory.createOne(Course);
+exports.getAllCourses = catchAsync(async (req, res, next) => {
+    const courses = await Course.find();
+
+    res.status(200).json({
+        status: "success",
+        results: courses.length,
+        data: {
+            data: courses
+        }
+    });
+});
+exports.getCourse = factory.getOne(Course, { path: 'lessons' }, 'views');
+exports.updateCourse = factory.updateOne(Course);
+exports.deleteCourse = factory.deleteOne(Course);
+</file>
+
 <file path="controllers/user/userController.js">
 const User = require('../../models/User');
 const catchAsync = require('../../utils/catchAsync');
@@ -1380,6 +1675,38 @@ exports.deleteMe = catchAsync(async (req, res, next) => {
         data: null
     });
 });
+</file>
+
+<file path="routes/userRoutes.js">
+const express = require('express');
+const authController = require('../controllers/auth/authController');
+const userController = require('../controllers/user/userController');
+const homepageController = require('../controllers/user/homepageController');
+const myLessonsController = require('../controllers/user/myLessonsController');
+
+const router = express.Router();
+
+router.use(authController.protect);
+
+router.get('/homepage', homepageController.getHomepage);
+
+router.get('/me', userController.getMe, userController.getUser);
+router.get('/profile', userController.getMe, userController.getUser);
+router.patch('/update-password', authController.updatePassword);
+router.patch('/update-me', userController.updateMe);
+router.delete('/delete-me', userController.deleteMe);
+
+router.use(authController.allowedTo('admin'));
+router.get('/getAllUsers', userController.getAllUsers);
+
+router.get('/homepage', homepageController.getHomepage);
+router.get('/my-lessons', myLessonsController.getMyLessons);
+
+module.exports = router;
+
+
+
+// ...
 </file>
 
 <file path="server.js">
@@ -1454,132 +1781,6 @@ process.on('SIGINT', () => {
         });
     }
 });
-</file>
-
-<file path="models/User.js">
-const mongoose = require('mongoose');
-const validator = require('validator');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
-const userSchema = new mongoose.Schema(
-    {
-        name: {
-            type: String,
-            required: [true, 'Please provide your name'],
-            trim: true,
-        },
-
-        fullname: {
-            type: String,
-            required: [true, 'Please provide your full name'],
-            trim: true,
-        },
-        phone: {
-            type: String,
-            required: [true, 'Please provide your phone number'],
-            unique: true,
-            trim: true,
-            match: [
-                /^(\+20|0)?1[0125][0-9]{8}$/,
-                'Please enter a valid Egyptian phone number',
-            ],
-        },
-
-        grade: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Grade',
-    required: [true, 'Please provide your grade'],
-},
-        role: {
-            type: String,
-            enum: ['user', 'admin', 'teacher', 'student'],
-            default: 'user',
-        },
-
-        password: {
-            type: String,
-            required: [true, 'Please provide a password'],
-            minlength: 8,
-            select: false,
-        },
-
-        confirmPassword: {
-            type: String,
-            required: [true, 'Please confirm your password'],
-            validate: {
-                validator: function (el) {
-                    return el === this.password;
-                },
-                message: 'Passwords are not the same',
-            },
-        },
-        passwordChangedAt: {
-            type: Date,
-            select: false,
-        },
-        active: {
-            type: Boolean,
-            default: true,
-            select: false,
-        },
-        passwordResetToken: {
-    type: String,
-    select: false,
-},
-
-passwordResetExpires: {
-    type: Date,
-    select: false,
-},
-    },
-    {
-        timestamps: true,
-    }
-);
-
-userSchema.pre('save', async function () {
-    if (!this.isModified('password')) return;
-
-    this.password = await bcrypt.hash(this.password, 12);
-
-    this.confirmPassword = undefined;
-}); 
-
-userSchema.pre(/^find/, function (next) {
-    this.find({ active: { $ne: false } });
-    next();
-});
-
-userSchema.methods.correctPassword = async function (
-    candidatePassword,
-    userPassword
-) {
-    return await bcrypt.compare(candidatePassword, userPassword);
-};
-
-userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
-    if (this.passwordChangedAt) {
-        const changedTimestamp = parseInt(this.passwordChangedAt.getTime() / 1000, 10);
-        return JWTTimestamp < changedTimestamp;
-    }
-
-    return false;
-};
-
-userSchema.methods.createPasswordResetToken = function () {
-    const resetToken = crypto.randomBytes(32).toString('hex');
-
-    this.passwordResetToken = crypto
-        .createHash('sha256')
-        .update(resetToken)
-        .digest('hex');
-
-    this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
-
-    return resetToken;
-};
-
-module.exports = mongoose.model('User', userSchema);
 </file>
 
 <file path="controllers/auth/authController.js">
@@ -1762,6 +1963,132 @@ exports.resendVerificationEmail = catchAsync(async (req, res, next) => {
 exports.refreshToken = catchAsync(async (req, res, next) => {
     return next(new ApiError('Not Implemented', 501));
 });
+</file>
+
+<file path="models/User.js">
+const mongoose = require('mongoose');
+const validator = require('validator');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const userSchema = new mongoose.Schema(
+    {
+        name: {
+            type: String,
+            required: [true, 'Please provide your name'],
+            trim: true,
+        },
+
+        fullname: {
+            type: String,
+            required: [true, 'Please provide your full name'],
+            trim: true,
+        },
+        phone: {
+            type: String,
+            required: [true, 'Please provide your phone number'],
+            unique: true,
+            trim: true,
+            match: [
+                /^(\+20|0)?1[0125][0-9]{8}$/,
+                'Please enter a valid Egyptian phone number',
+            ],
+        },
+
+        grade: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Grade',
+    required: [true, 'Please provide your grade'],
+},
+        role: {
+            type: String,
+            enum: ['user', 'admin', 'teacher', 'student'],
+            default: 'user',
+        },
+
+        password: {
+            type: String,
+            required: [true, 'Please provide a password'],
+            minlength: 8,
+            select: false,
+        },
+
+        confirmPassword: {
+            type: String,
+            required: [true, 'Please confirm your password'],
+            validate: {
+                validator: function (el) {
+                    return el === this.password;
+                },
+                message: 'Passwords are not the same',
+            },
+        },
+        passwordChangedAt: {
+            type: Date,
+            select: false,
+        },
+        active: {
+            type: Boolean,
+            default: true,
+            select: false,
+        },
+        passwordResetToken: {
+    type: String,
+    select: false,
+},
+
+passwordResetExpires: {
+    type: Date,
+    select: false,
+},
+    },
+    {
+        timestamps: true,
+    }
+);
+
+userSchema.pre('save', async function () {
+    if (!this.isModified('password')) return;
+
+    this.password = await bcrypt.hash(this.password, 12);
+
+    this.confirmPassword = undefined;
+}); 
+
+userSchema.pre(/^find/, function (next) {
+    this.find({ active: { $ne: false } });
+    next();
+});
+
+userSchema.methods.correctPassword = async function (
+    candidatePassword,
+    userPassword
+) {
+    return await bcrypt.compare(candidatePassword, userPassword);
+};
+
+userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
+    if (this.passwordChangedAt) {
+        const changedTimestamp = parseInt(this.passwordChangedAt.getTime() / 1000, 10);
+        return JWTTimestamp < changedTimestamp;
+    }
+
+    return false;
+};
+
+userSchema.methods.createPasswordResetToken = function () {
+    const resetToken = crypto.randomBytes(32).toString('hex');
+
+    this.passwordResetToken = crypto
+        .createHash('sha256')
+        .update(resetToken)
+        .digest('hex');
+
+    this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
+
+    return resetToken;
+};
+
+module.exports = mongoose.model('User', userSchema);
 </file>
 
 </files>

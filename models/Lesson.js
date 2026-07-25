@@ -16,6 +16,13 @@ const lessonSchema = new mongoose.Schema({
     },
     videoUrl: {
         type: String,
+        validate: {
+            validator: function (v) {
+                if (!v) return true; // optional field, لو مش متبعوت مفيش مشكلة
+                return /^https:\/\/www\.youtube\.com\/embed\/[A-Za-z0-9_-]+/.test(v);
+            },
+            message: 'videoUrl must be a valid YouTube embed link (e.g. https://www.youtube.com/embed/VIDEO_ID)',
+        },
     },
     pdf: {
         type: String,
