@@ -18,10 +18,12 @@ const lessonSchema = new mongoose.Schema({
         type: String,
         validate: {
             validator: function (v) {
-                if (!v) return true; // optional field, لو مش متبعوت مفيش مشكلة
-                return /^https:\/\/www\.youtube\.com\/embed\/[A-Za-z0-9_-]+/.test(v);
+                if (!v) return true;
+                const isYoutubeEmbed = /^https:\/\/www\.youtube\.com\/embed\/[A-Za-z0-9_-]+/.test(v);
+                const isB2Video = v.startsWith(process.env.B2_ENDPOINT || '');
+                return isYoutubeEmbed || isB2Video;
             },
-            message: 'videoUrl must be a valid YouTube embed link (e.g. https://www.youtube.com/embed/VIDEO_ID)',
+            message: 'videoUrl must be a valid YouTube embed link or an uploaded video link',
         },
     },
     pdf: {

@@ -4,8 +4,16 @@ const router = express.Router();
 
 const authController = require('../controllers/auth/authController');
 const lessonController = require('../controllers/lessonController');
+const videoUploadController = require('../controllers/videoUploadController');
 
 router.use(authController.protect);
+
+router.post(
+    '/upload-video',
+    authController.allowedTo('admin', 'teacher'),
+    videoUploadController.uploadVideoMiddleware,
+    videoUploadController.uploadVideoToB2
+);
 
 router
     .route('/')
