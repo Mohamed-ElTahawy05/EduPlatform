@@ -1,17 +1,27 @@
 const multer = require('multer');
-const { PutObjectCommand } = require('@aws-sdk/client-s3');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const crypto = require('crypto');
+const { Upload } = require('@aws-sdk/lib-storage');
 const b2Client = require('../utils/b2Client');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 
-// تخزين مؤقت في الـ RAM قبل ما نرفعه لـ B2 (مناسب لفيديوهات مش ضخمة جدًا)
-const storage = multer.memoryStorage();
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, os.tmpdir());
+    },
+    filename: (req, file, cb) => {
+        const uniqueName = `${crypto.randomUUID()}-${file.originalname}`;
+        cb(null, uniqueName);
+    },
+});
 
 const upload = multer({
     storage,
     limits: {
-        fileSize: 500 * 1024 * 1024, // حد أقصى 500 ميجا للفيديو الواحد، عدّلها حسب احتياجك
+        fileSize: 1024 * 1024 * 1024, // 1 جيجا حد أقصى
     },
     fileFilter: (req, file, cb) => {
         if (!file.mimetype.startsWith('video/')) {
@@ -28,24 +38,35 @@ exports.uploadVideoToB2 = catchAsync(async (req, res, next) => {
         return next(new ApiError('No video file provided', 400));
     }
 
-    // اسم فريد للملف عشان منحصلش تعارض بين فيديوهات بنفس الاسم
+    const tempFilePath = req.file.path;
     const uniqueFileName = `lessons/${crypto.randomUUID()}-${req.file.originalname}`;
 
-    const command = new PutObjectCommand({
-        Bucket: process.env.B2_BUCKET_NAME,
-        Key: uniqueFileName,
-        Body: req.file.buffer,
-        ContentType: req.file.mimetype,
-    });
+    try {
+        const fileStream = fs.createReadStream(tempFilePath);
 
-    await b2Client.send(command);
+        const upload = new Upload({
+            client: b2Client,
+            params: {
+                Bucket: process.env.B2_BUCKET_NAME,
+                Key: uniqueFileName,
+                Body: fileStream,
+                ContentType: req.file.mimetype,
+            },
+        });
 
-    const fileUrl = `${process.env.B2_ENDPOINT}/${process.env.B2_BUCKET_NAME}/${uniqueFileName}`;
+        await upload.done();
 
-    res.status(200).json({
-        status: 'success',
-        data: {
-            videoUrl: fileUrl,
-        },
-    });
+        const fileUrl = `${process.env.B2_ENDPOINT}/${process.env.B2_BUCKET_NAME}/${uniqueFileName}`;
+
+        res.status(200).json({
+            status: 'success',
+            data: {
+                videoUrl: fileUrl,
+            },
+        });
+    } finally {
+        fs.unlink(tempFilePath, (err) => {
+            if (err) console.error('Failed to delete temp file:', err);
+        });
+    }
 });
