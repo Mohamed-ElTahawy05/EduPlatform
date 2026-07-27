@@ -32,19 +32,20 @@ if (process.env.NODE_ENV === 'development') {
     app.use(morgan('dev'));
 }
 
+// ⚠️ TEMP: Rate limiter متعطل مؤقتًا وقت التطوير (صاحبي بيبعت ريكوستات كتير وهو بيعمل تنسيق الفرونت)
+// لازم يترجع تاني قبل ما المنصة تطلع Live فعليًا!
 // Limit requests from same API
-const limiter = rateLimit({
-    max: 100,
-    windowMs: 60 * 60 * 1000,
-    message: 'Too many requests from this IP, please try again in an hour!'
-});
-app.use('/api', limiter);
+// const limiter = rateLimit({
+//     max: 100,
+//     windowMs: 60 * 60 * 1000,
+//     message: 'Too many requests from this IP, please try again in an hour!'
+// });
+// app.use('/api', limiter);
 
 // Body parser
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// Data sanitization against NoSQL query injection
 // Data sanitization against NoSQL query injection
 app.use(mongoSanitize());
 
