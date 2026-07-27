@@ -9,10 +9,9 @@ const videoUploadController = require('../controllers/videoUploadController');
 router.use(authController.protect);
 
 router.post(
-    '/upload-video',
+    '/get-upload-url',
     authController.allowedTo('admin', 'teacher'),
-    videoUploadController.uploadVideoMiddleware,
-    videoUploadController.uploadVideoToB2
+    videoUploadController.getUploadUrl
 );
 
 router
