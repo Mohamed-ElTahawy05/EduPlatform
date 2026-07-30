@@ -29,6 +29,16 @@ const lessonSchema = new mongoose.Schema({
     pdf: {
         type: String,
     },
+    thumbnail: {
+        type: String,
+        validate: {
+            validator: function (v) {
+                if (!v) return true;
+                return v.startsWith(process.env.B2_ENDPOINT || '');
+            },
+            message: 'thumbnail must be a valid uploaded image link',
+        },
+    },
     isFree: {
         type: Boolean,
         default: false
