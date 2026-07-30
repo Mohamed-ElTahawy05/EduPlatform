@@ -22,9 +22,9 @@ const connectDB = async () => {
         console.log("Connected successfully");
 
         const port = process.env.PORT || 3000;
-        server = app.listen(port, () => {
-            console.log(`Server is running on port ${port} in ${process.env.NODE_ENV || 'production'} mode`);
-        });
+        server = app.listen(port, '0.0.0.0', () => {
+    console.log(`Server is running on port ${port} in ${process.env.NODE_ENV || 'production'} mode`);
+});
     } catch (err) {
         console.error('MongoDB connection failed:', err.message);
         console.log('Retrying MongoDB connection in 5 seconds...');
