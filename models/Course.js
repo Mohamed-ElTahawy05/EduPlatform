@@ -11,6 +11,9 @@ const courseSchema = new mongoose.Schema({
         required: [true, 'Please provide a description for the course'],
         trim: true,
     },
+    thumbnail: {
+        type: String,
+    },
     grade: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Grade",
@@ -31,7 +34,6 @@ const courseSchema = new mongoose.Schema({
     toObject: { virtuals: true }
 }); 
 
-// Virtual populate for lessons
 courseSchema.virtual('lessons', {
     ref: 'Lesson',
     foreignField: 'course',
