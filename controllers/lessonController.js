@@ -52,13 +52,12 @@ exports.getLesson = catchAsync(async (req, res, next) => {
         }
     }
 
-    // هل الطالب خلّص الدرس ده (فتح الفيديو + سلّم كويز الدرس)؟
+    // دايمًا هات الكويز المرتبط بالدرس، بغض النظر عن صلاحية اليوزر
+    const quiz = await Quiz.findOne({ lesson: lesson._id });
+
     let solutionsUnlocked = isPrivileged;
-    let quiz = null;
 
     if (!isPrivileged) {
-        quiz = await Quiz.findOne({ lesson: lesson._id });
-
         if (!quiz) {
             // مفيش كويز مرتبط بالدرس أصلًا - الحل بيفضل ظاهر عادي
             solutionsUnlocked = true;
@@ -81,7 +80,7 @@ exports.getLesson = catchAsync(async (req, res, next) => {
         status: 'success',
         data: {
             data: lessonData,
-            quiz: quiz ? { _id: quiz._id, title: quiz.title } : null,
+            quiz: quiz ? { _id: quiz._id, title: quiz.title, duration: quiz.duration, NumberQuestions: quiz.NumberQuestions } : null,
             solutionsUnlocked,
         },
     });
