@@ -3,18 +3,26 @@ const LessonProgress = require('../models/LessonProgress');
 const Enrollment = require('../models/Enrollment');
 const Quiz = require('../models/Quiz');
 const QuizResult = require('../models/QuizResult');
+const factory = require('./handlerFactory');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 
-exports.createLesson = require('./handlerFactory').createOne(Lesson);
-exports.updateLesson = require('./handlerFactory').updateOne(Lesson);
-exports.deleteLesson = require('./handlerFactory').deleteOne(Lesson);
+exports.createLesson = factory.createOne(Lesson);
+exports.updateLesson = factory.updateOne(Lesson);
+exports.deleteLesson = factory.deleteOne(Lesson);
 
 const countPdfs = (lesson) => {
     let count = 0;
     if (lesson.summaryPdf) count += 1;
     if (lesson.questionsPdf) count += 1;
     if (lesson.solutionsPdf) count += 1;
+    return count;
+};
+
+const countVideos = (lesson) => {
+    let count = 0;
+    if (lesson.videoUrl) count += 1;
+    if (Array.isArray(lesson.videos)) count += lesson.videos.length;
     return count;
 };
 
@@ -34,6 +42,7 @@ exports.getAllLessons = catchAsync(async (req, res, next) => {
     const lessonsWithStats = lessons.map((lesson) => {
         const lessonObj = lesson.toObject();
         lessonObj.num_pdf = countPdfs(lesson);
+        lessonObj.num_Video = countVideos(lesson);
         lessonObj.num_Quiz = quizCountMap.get(lesson._id.toString()) || 0;
         return lessonObj;
     });
@@ -88,12 +97,14 @@ exports.getLesson = catchAsync(async (req, res, next) => {
         }
     }
 
+    // دايمًا هات الكويز المرتبط بالدرس، بغض النظر عن صلاحية اليوزر
     const quiz = await Quiz.findOne({ lesson: lesson._id });
 
     let solutionsUnlocked = isPrivileged;
 
     if (!isPrivileged) {
         if (!quiz) {
+            // مفيش كويز مرتبط بالدرس أصلًا - الحل بيفضل ظاهر عادي
             solutionsUnlocked = true;
         } else {
             const quizResult = await QuizResult.findOne({
@@ -107,6 +118,7 @@ exports.getLesson = catchAsync(async (req, res, next) => {
 
     const lessonData = lesson.toObject();
     lessonData.num_pdf = countPdfs(lesson);
+    lessonData.num_Video = countVideos(lesson);
     lessonData.num_Quiz = quiz ? 1 : 0;
 
     if (!solutionsUnlocked) {

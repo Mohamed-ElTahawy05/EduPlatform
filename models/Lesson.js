@@ -1,5 +1,12 @@
 const mongoose = require('mongoose');
 
+const videoValidator = function (v) {
+    if (!v) return true;
+    const isYoutubeEmbed = /^https:\/\/www\.youtube\.com\/embed\/[A-Za-z0-9_-]+/.test(v);
+    const isB2Video = v.startsWith(process.env.B2_ENDPOINT || '');
+    return isYoutubeEmbed || isB2Video;
+};
+
 const lessonSchema = new mongoose.Schema({
     title: {
         type: String,
@@ -14,20 +21,41 @@ const lessonSchema = new mongoose.Schema({
     duration: {
         type: String,
     },
+    order: {
+        type: Number,
+        default: 0,
+    },
     videoUrl: {
+        type: String,
+        validate: {
+            validator: videoValidator,
+            message: 'videoUrl must be a valid YouTube embed link or an uploaded video link',
+        },
+    },
+    videos: [
+        {
+            type: String,
+            validate: {
+                validator: videoValidator,
+                message: 'each video must be a valid YouTube embed link or an uploaded video link',
+            },
+        },
+    ],
+    summaryPdf: {
+        type: String,
+    },
+    questionsPdf: {
+        type: String,
+    },
+    solutionsPdf: {
         type: String,
         validate: {
             validator: function (v) {
                 if (!v) return true;
-                const isYoutubeEmbed = /^https:\/\/www\.youtube\.com\/embed\/[A-Za-z0-9_-]+/.test(v);
-                const isB2Video = v.startsWith(process.env.B2_ENDPOINT || '');
-                return isYoutubeEmbed || isB2Video;
+                return v.startsWith(process.env.B2_ENDPOINT || '');
             },
-            message: 'videoUrl must be a valid YouTube embed link or an uploaded video link',
+            message: 'thumbnail must be a valid uploaded image link',
         },
-    },
-    pdf: {
-        type: String,
     },
     thumbnail: {
         type: String,
@@ -47,10 +75,12 @@ const lessonSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Course',
         required: [true, 'Please provide a course for the lesson'],
-    },views: {
-    type: Number,
-    default: 0
-    },status: {
+    },
+    views: {
+        type: Number,
+        default: 0
+    },
+    status: {
         type: String,
         enum: ['draft', 'published'],
         default: 'draft'
