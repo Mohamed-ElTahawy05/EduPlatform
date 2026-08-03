@@ -3,15 +3,51 @@ const LessonProgress = require('../models/LessonProgress');
 const Enrollment = require('../models/Enrollment');
 const Quiz = require('../models/Quiz');
 const QuizResult = require('../models/QuizResult');
-const factory = require('./handlerFactory');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 
-exports.createLesson = factory.createOne(Lesson);
-exports.getAllLessons = factory.getAll(Lesson);
-exports.updateLesson = factory.updateOne(Lesson);
-exports.deleteLesson = factory.deleteOne(Lesson);
+exports.createLesson = require('./handlerFactory').createOne(Lesson);
+exports.updateLesson = require('./handlerFactory').updateOne(Lesson);
+exports.deleteLesson = require('./handlerFactory').deleteOne(Lesson);
 
+const countPdfs = (lesson) => {
+    let count = 0;
+    if (lesson.summaryPdf) count += 1;
+    if (lesson.questionsPdf) count += 1;
+    if (lesson.solutionsPdf) count += 1;
+    return count;
+};
+
+// GET /api/v1/lessons
+exports.getAllLessons = catchAsync(async (req, res, next) => {
+    let filter = {};
+    if (req.params.courseId) filter = { course: req.params.courseId };
+
+    const lessons = await Lesson.find(filter);
+
+    const quizCounts = await Quiz.aggregate([
+        { $match: { lesson: { $in: lessons.map((l) => l._id) } } },
+        { $group: { _id: '$lesson', count: { $sum: 1 } } },
+    ]);
+    const quizCountMap = new Map(quizCounts.map((q) => [q._id.toString(), q.count]));
+
+    const lessonsWithStats = lessons.map((lesson) => {
+        const lessonObj = lesson.toObject();
+        lessonObj.num_pdf = countPdfs(lesson);
+        lessonObj.num_Quiz = quizCountMap.get(lesson._id.toString()) || 0;
+        return lessonObj;
+    });
+
+    res.status(200).json({
+        status: 'success',
+        results: lessonsWithStats.length,
+        data: {
+            data: lessonsWithStats,
+        },
+    });
+});
+
+// GET /api/v1/lessons/:id
 exports.getLesson = catchAsync(async (req, res, next) => {
     const lesson = await Lesson.findById(req.params.id);
 
@@ -52,14 +88,12 @@ exports.getLesson = catchAsync(async (req, res, next) => {
         }
     }
 
-    // دايمًا هات الكويز المرتبط بالدرس، بغض النظر عن صلاحية اليوزر
     const quiz = await Quiz.findOne({ lesson: lesson._id });
 
     let solutionsUnlocked = isPrivileged;
 
     if (!isPrivileged) {
         if (!quiz) {
-            // مفيش كويز مرتبط بالدرس أصلًا - الحل بيفضل ظاهر عادي
             solutionsUnlocked = true;
         } else {
             const quizResult = await QuizResult.findOne({
@@ -72,6 +106,9 @@ exports.getLesson = catchAsync(async (req, res, next) => {
     }
 
     const lessonData = lesson.toObject();
+    lessonData.num_pdf = countPdfs(lesson);
+    lessonData.num_Quiz = quiz ? 1 : 0;
+
     if (!solutionsUnlocked) {
         delete lessonData.solutionsPdf;
     }
