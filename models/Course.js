@@ -13,13 +13,12 @@ const courseSchema = new mongoose.Schema({
     },
     thumbnail: {
         type: String,
-        validate: {
-            validator: function (v) {
-                if (!v) return true;
-                return v.startsWith(process.env.B2_ENDPOINT || '');
-            },
-            message: 'thumbnail must be a valid uploaded image link',
-        },
+validator: function (v) {
+    if (!v) return true;
+    const isB2 = v.startsWith(process.env.B2_ENDPOINT || '');
+    const isCloudinary = v.startsWith('https://res.cloudinary.com/');
+    return isB2 || isCloudinary;
+},
     },
     grade: {
         type: mongoose.Schema.Types.ObjectId,
