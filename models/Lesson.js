@@ -7,6 +7,13 @@ const videoValidator = function (v) {
     return isYoutubeEmbed || isB2Video;
 };
 
+const fileValidator = function (v) {
+    if (!v) return true;
+    const isB2 = v.startsWith(process.env.B2_ENDPOINT || '');
+    const isCloudinary = v.startsWith('https://res.cloudinary.com/');
+    return isB2 || isCloudinary;
+};
+
 const lessonSchema = new mongoose.Schema({
     title: {
         type: String,
@@ -43,28 +50,31 @@ const lessonSchema = new mongoose.Schema({
     ],
     summaryPdf: {
         type: String,
+        validate: {
+            validator: fileValidator,
+            message: 'summaryPdf must be a valid uploaded file link',
+        },
     },
     questionsPdf: {
         type: String,
+        validate: {
+            validator: fileValidator,
+            message: 'questionsPdf must be a valid uploaded file link',
+        },
     },
     solutionsPdf: {
         type: String,
         validate: {
-            validator: function (v) {
-                if (!v) return true;
-                return v.startsWith(process.env.B2_ENDPOINT || '');
-            },
-            message: 'thumbnail must be a valid uploaded image link',
+            validator: fileValidator,
+            message: 'solutionsPdf must be a valid uploaded file link',
         },
     },
     thumbnail: {
         type: String,
-        validator: function (v) {
-    if (!v) return true;
-    const isB2 = v.startsWith(process.env.B2_ENDPOINT || '');
-    const isCloudinary = v.startsWith('https://res.cloudinary.com/');
-    return isB2 || isCloudinary;
-},
+        validate: {
+            validator: fileValidator,
+            message: 'thumbnail must be a valid uploaded image link',
+        },
     },
     isFree: {
         type: Boolean,
