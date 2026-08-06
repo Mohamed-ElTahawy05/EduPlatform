@@ -4,7 +4,8 @@ const videoValidator = function (v) {
     if (!v) return true;
     const isYoutubeEmbed = /^https:\/\/www\.youtube\.com\/embed\/[A-Za-z0-9_-]+/.test(v);
     const isB2Video = v.startsWith(process.env.B2_ENDPOINT || '');
-    return isYoutubeEmbed || isB2Video;
+    const isCloudinaryVideo = v.startsWith('https://res.cloudinary.com/');
+    return isYoutubeEmbed || isB2Video || isCloudinaryVideo;
 };
 
 const fileValidator = function (v) {

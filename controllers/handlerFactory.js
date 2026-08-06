@@ -46,7 +46,7 @@ exports.createOne = Model =>
         });
     });
 
-exports.getOne = (Model, popOptions, incrementField) =>
+exports.getOne = (Model, popOptions, incrementField) =>     // ملهاش لازمه 
     catchAsync(async (req, res, next) => {
         let query = Model.findById(req.params.id);
         if (popOptions) query = query.populate(popOptions);
@@ -70,7 +70,7 @@ exports.getOne = (Model, popOptions, incrementField) =>
                 data: doc
             }
         });
-    });
+    });      
 
 exports.getAll = (Model, popOptions) =>
     catchAsync(async (req, res, next) => {
