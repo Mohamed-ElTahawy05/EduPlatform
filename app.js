@@ -19,6 +19,7 @@ const userRouter = require('./routes/userRoutes');
 const adminRouter = require('./routes/adminRoutes');
 const quizRouter = require('./routes/quizRoutes');
 const questionRouter = require('./routes/questionRoutes');
+const chatbotRouter = require('./routes/chatbotRoutes');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -72,6 +73,7 @@ app.use('/api/v1/courses', courseRouter);
 app.use('/api/v1/lessons', lessonRouter);
 app.use('/api/v1/quizzes', quizRouter);
 app.use('/api/v1/questions', questionRouter);
+app.use('/api/v1/chatbot', chatbotRouter);
 
 app.use((req, res, next) => {
     next(new ApiError(`Can't find ${req.originalUrl} on this server!`, 404));
