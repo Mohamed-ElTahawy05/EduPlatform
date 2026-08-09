@@ -82,7 +82,17 @@ const getLessonStatsMap = async () => {
 };
 
 exports.getAllCourses = catchAsync(async (req, res, next) => {
-    const courses = await Course.find();
+    let filter = {};
+
+    const isPrivileged = req.user && (req.user.role === 'admin' || req.user.role === 'teacher');
+
+    if (!isPrivileged && req.user) {
+        filter = { grade: req.user.grade };
+    }
+
+    const courses = await Course.find(filter);
+    const lessonStatsMap = await getLessonStatsMap();
+    
     const lessonStatsMap = await getLessonStatsMap();
 
     const coursesWithStats = courses.map((course) => {
