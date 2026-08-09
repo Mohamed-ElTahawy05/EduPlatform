@@ -92,8 +92,6 @@ exports.getAllCourses = catchAsync(async (req, res, next) => {
 
     const courses = await Course.find(filter);
     const lessonStatsMap = await getLessonStatsMap();
-    
-    const lessonStatsMap = await getLessonStatsMap();
 
     const coursesWithStats = courses.map((course) => {
         const idStr = course._id.toString();
