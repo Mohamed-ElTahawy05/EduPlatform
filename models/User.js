@@ -18,7 +18,7 @@ const userSchema = new mongoose.Schema(
         phone: {
             type: String,
             required: [true, 'Please provide your phone number'],
-            unique: true,
+            unique: [true,'this phone is already existed'],
             trim: true,
             match: [
                 /^(\+20|0)?1[0125][0-9]{8}$/,
@@ -40,7 +40,7 @@ const userSchema = new mongoose.Schema(
         password: {
             type: String,
             required: [true, 'Please provide a password'],
-            minlength: 8,
+            // minlength: 8,
             select: false,
         },
 
