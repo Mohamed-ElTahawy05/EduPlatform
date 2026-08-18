@@ -164,11 +164,32 @@ exports.getAllCourses = catchAsync(async (req, res, next) => {
         createdAt: course.createdAt,
     }));
 
+    // نجمع الكورسات تحت كل صف دراسي، عشان صاحبي في الفرونت يقدر يعرضهم مجمعين
+    const gradesMap = new Map();
+
+    coursesWithCounts.forEach((course) => {
+        // ممكن يكون فيه كورس قديم بـ grade محذوف/مش موجود، نتعامل معاه كـ "بدون صف"
+        const gradeKey = course.grade ? course.grade._id.toString() : 'no-grade';
+        const gradeName = course.grade ? course.grade.name : 'بدون صف';
+
+        if (!gradesMap.has(gradeKey)) {
+            gradesMap.set(gradeKey, {
+                gradeId: course.grade ? course.grade._id : null,
+                gradeName,
+                courses: [],
+            });
+        }
+
+        gradesMap.get(gradeKey).courses.push(course);
+    });
+
+    const groupedByGrade = Array.from(gradesMap.values());
+
     res.status(200).json({
         status: 'success',
         results: coursesWithCounts.length,
         data: {
-            courses: coursesWithCounts,
+            grades: groupedByGrade,
         },
     });
 });
