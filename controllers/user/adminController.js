@@ -1,10 +1,14 @@
 const User = require('../../models/User');
+const Course = require('../../models/Course');
 const Lesson = require('../../models/Lesson');
 const LessonProgress = require('../../models/LessonProgress');
+const QuizResult = require('../../models/QuizResult');
 const catchAsync = require('../../utils/catchAsync');
+const ApiError = require('../../utils/ApiError');
 
 const ACTIVE_THRESHOLD_MINUTES = 15;
 
+// GET /api/v1/admin/dashboard
 exports.getDashboardStats = catchAsync(async (req, res, next) => {
     const activeThreshold = new Date(Date.now() - ACTIVE_THRESHOLD_MINUTES * 60 * 1000);
 
@@ -78,30 +82,153 @@ exports.getDashboardStats = catchAsync(async (req, res, next) => {
     });
 });
 
-exports.getAllUsers = async (req, res) => {
+// GET /api/v1/admin/users
+exports.getAllUsers = catchAsync(async (req, res, next) => {
+    const activeThreshold = new Date(Date.now() - ACTIVE_THRESHOLD_MINUTES * 60 * 1000);
 
-};
+    const users = await User.find().populate({ path: 'grade', select: 'name' });
 
-exports.getUser = async (req, res) => {
+    // نضيف isOnline لكل مستخدم (نفس منطق النشاط في الداشبورد)
+    const usersWithStatus = users.map((user) => ({
+        _id: user._id,
+        name: user.name,
+        fullname: user.fullname,
+        phone: user.phone,
+        grade: user.grade,
+        role: user.role,
+        isOnline: user.lastActiveAt ? user.lastActiveAt >= activeThreshold : false,
+        createdAt: user.createdAt,
+    }));
 
-};
+    res.status(200).json({
+        status: 'success',
+        results: usersWithStatus.length,
+        data: {
+            users: usersWithStatus,
+        },
+    });
+});
 
-exports.deleteUser = async (req, res) => {
+// GET /api/v1/admin/users/:id
+exports.getUser = catchAsync(async (req, res, next) => {
+    const user = await User.findById(req.params.id).populate({ path: 'grade', select: 'name' });
 
-};
+    if (!user) {
+        return next(new ApiError('No user found with that ID', 404));
+    }
 
-exports.getAllCourses = async (req, res) => {
+    res.status(200).json({
+        status: 'success',
+        data: {
+            user,
+        },
+    });
+});
 
-};
+// DELETE /api/v1/admin/users/:id
+exports.deleteUser = catchAsync(async (req, res, next) => {
+    const user = await User.findByIdAndDelete(req.params.id);
 
-exports.deleteCourse = async (req, res) => {
+    if (!user) {
+        return next(new ApiError('No user found with that ID', 404));
+    }
 
-};
+    res.status(204).json({
+        status: 'success',
+        data: null,
+    });
+});
 
-exports.getAllQuizResults = async (req, res) => {
+// GET /api/v1/admin/courses
+exports.getAllCourses = catchAsync(async (req, res, next) => {
+    const courses = await Course.find()
+        .populate({ path: 'grade', select: 'name' })
+        .populate({ path: 'teacher', select: 'name fullname' });
 
-};
+    const lessonsCounts = await Lesson.aggregate([
+        { $group: { _id: '$course', count: { $sum: 1 } } },
+    ]);
+    const countsMap = new Map(
+        lessonsCounts.map((item) => [item._id.toString(), item.count])
+    );
 
-exports.getReports = async (req, res) => {
+    const coursesWithCounts = courses.map((course) => ({
+        _id: course._id,
+        title: course.title,
+        description: course.description,
+        thumbnail: course.thumbnail || null,
+        grade: course.grade,
+        teacher: course.teacher,
+        views: course.views,
+        lessonsCount: countsMap.get(course._id.toString()) || 0,
+        createdAt: course.createdAt,
+    }));
 
-};
+    res.status(200).json({
+        status: 'success',
+        results: coursesWithCounts.length,
+        data: {
+            courses: coursesWithCounts,
+        },
+    });
+});
+
+// DELETE /api/v1/admin/courses/:id
+exports.deleteCourse = catchAsync(async (req, res, next) => {
+    const course = await Course.findByIdAndDelete(req.params.id);
+
+    if (!course) {
+        return next(new ApiError('No course found with that ID', 404));
+    }
+
+    // مسح كل الدروس التابعة للكورس ده كمان (تنظيف تلقائي)
+    await Lesson.deleteMany({ course: req.params.id });
+
+    res.status(204).json({
+        status: 'success',
+        data: null,
+    });
+});
+
+// GET /api/v1/admin/quiz-results
+exports.getAllQuizResults = catchAsync(async (req, res, next) => {
+    const results = await QuizResult.find()
+        .populate({ path: 'user', select: 'name fullname phone' })
+        .populate({ path: 'quiz', select: 'title totalMarks' })
+        .sort('-createdAt');
+
+    res.status(200).json({
+        status: 'success',
+        results: results.length,
+        data: {
+            quizResults: results,
+        },
+    });
+});
+
+// GET /api/v1/admin/reports
+exports.getReports = catchAsync(async (req, res, next) => {
+    const totalUsers = await User.countDocuments();
+    const totalCourses = await Course.countDocuments();
+    const totalLessons = await Lesson.countDocuments();
+    const publishedLessons = await Lesson.countDocuments({ status: 'published' });
+    const totalQuizResults = await QuizResult.countDocuments();
+
+    const usersByGrade = await User.aggregate([
+        { $group: { _id: '$grade', count: { $sum: 1 } } },
+    ]);
+
+    res.status(200).json({
+        status: 'success',
+        data: {
+            summary: {
+                totalUsers,
+                totalCourses,
+                totalLessons,
+                publishedLessons,
+                totalQuizResults,
+            },
+            usersByGrade,
+        },
+    });
+});
