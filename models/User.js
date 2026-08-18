@@ -63,6 +63,10 @@ const userSchema = new mongoose.Schema(
             default: true,
             select: false,
         },
+        lastActiveAt: {
+        type: Date,
+        default: Date.now,
+},
         passwordResetToken: {
     type: String,
     select: false,

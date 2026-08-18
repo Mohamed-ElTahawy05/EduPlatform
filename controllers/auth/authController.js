@@ -109,7 +109,7 @@ exports.protect = catchAsync(async (req, res, next) => {
             new ApiError('User recently changed password! Please log in again.', 401)
         );
     }
-
+    await User.updateOne({ _id: currentUser._id }, { lastActiveAt: Date.now() });
     req.user = currentUser;
     next();
 });
