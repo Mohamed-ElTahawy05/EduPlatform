@@ -143,7 +143,6 @@ exports.deleteUser = catchAsync(async (req, res, next) => {
 exports.getAllCourses = catchAsync(async (req, res, next) => {
     const courses = await Course.find()
         .populate({ path: 'grade', select: 'name' })
-        .populate({ path: 'teacher', select: 'firstName lastName' });
 
     const lessonsCounts = await Lesson.aggregate([
         { $group: { _id: '$course', count: { $sum: 1 } } },

@@ -28,11 +28,7 @@ const courseSchema = new mongoose.Schema({
         ref: "Grade",
         required: [true, 'Course must belong to a Grade']
     },
-    teacher: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: [true, 'Course must belong to a Teacher']
-    },views: {
+    views: {
     type: Number,
     default: 0
 },
