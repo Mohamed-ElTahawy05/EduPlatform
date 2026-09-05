@@ -64,7 +64,7 @@ exports.getHomepage = catchAsync(async (req, res, next) => {
     res.status(200).json({
         status: 'success',
         data: {
-            welcomeMessage: `أهلًا يا ${req.user.name}`,
+            welcomeMessage: `أهلًا يا ${req.user.firstName}`,
             today: new Date(),
             stats: {
                 totalLessons: totalPublished,

@@ -4,17 +4,16 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const userSchema = new mongoose.Schema(
     {
-        name: {
-            type: String,
-            required: [true, 'Please provide your name'],
-            trim: true,
-        },
-
-        fullname: {
-            type: String,
-            required: [true, 'Please provide your full name'],
-            trim: true,
-        },
+        firstName: {
+                type: String,
+                required: [true, 'Please provide your first name'],
+                trim: true,
+                },
+    lastName: {
+        type: String,
+        required: [true, 'Please provide your last name'],
+        trim: true,
+            },
         phone: {
             type: String,
             required: [true, 'Please provide your phone number'],

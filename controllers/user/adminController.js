@@ -90,14 +90,14 @@ exports.getAllUsers = catchAsync(async (req, res, next) => {
 
     // نضيف isOnline لكل مستخدم (نفس منطق النشاط في الداشبورد)
     const usersWithStatus = users.map((user) => ({
-        _id: user._id,
-        name: user.name,
-        fullname: user.fullname,
-        phone: user.phone,
-        grade: user.grade,
-        role: user.role,
-        isOnline: user.lastActiveAt ? user.lastActiveAt >= activeThreshold : false,
-        createdAt: user.createdAt,
+    _id: user._id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    phone: user.phone,
+    grade: user.grade,
+    role: user.role,
+    isOnline: user.lastActiveAt ? user.lastActiveAt >= activeThreshold : false,
+    createdAt: user.createdAt,
     }));
 
     res.status(200).json({
@@ -143,7 +143,7 @@ exports.deleteUser = catchAsync(async (req, res, next) => {
 exports.getAllCourses = catchAsync(async (req, res, next) => {
     const courses = await Course.find()
         .populate({ path: 'grade', select: 'name' })
-        .populate({ path: 'teacher', select: 'name fullname' });
+        .populate({ path: 'teacher', select: 'firstName lastName' });
 
     const lessonsCounts = await Lesson.aggregate([
         { $group: { _id: '$course', count: { $sum: 1 } } },
@@ -214,7 +214,7 @@ exports.deleteCourse = catchAsync(async (req, res, next) => {
 // GET /api/v1/admin/quiz-results
 exports.getAllQuizResults = catchAsync(async (req, res, next) => {
     const results = await QuizResult.find()
-        .populate({ path: 'user', select: 'name fullname phone' })
+        .populate({ path: 'user', select: 'firstName lastName phone' })
         .populate({ path: 'quiz', select: 'title totalMarks' })
         .sort('-createdAt');
 
