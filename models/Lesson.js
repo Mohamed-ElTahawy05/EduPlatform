@@ -3,16 +3,14 @@ const mongoose = require('mongoose');
 const videoValidator = function (v) {
     if (!v) return true;
     const isYoutubeEmbed = /^https:\/\/www\.youtube\.com\/embed\/[A-Za-z0-9_-]+/.test(v);
-    const isB2Video = v.startsWith(process.env.B2_ENDPOINT || '');
     const isCloudinaryVideo = v.startsWith('https://res.cloudinary.com/');
-    return isYoutubeEmbed || isB2Video || isCloudinaryVideo;
+    return isYoutubeEmbed || isCloudinaryVideo;
 };
 
 const fileValidator = function (v) {
     if (!v) return true;
-    const isB2 = v.startsWith(process.env.B2_ENDPOINT || '');
     const isCloudinary = v.startsWith('https://res.cloudinary.com/');
-    return isB2 || isCloudinary;
+    return isCloudinary;
 };
 
 const lessonSchema = new mongoose.Schema({

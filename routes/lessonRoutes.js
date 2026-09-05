@@ -9,9 +9,9 @@ const videoUploadController = require('../controllers/videoUploadController');
 router.use(authController.protect);
 
 router.post(
-    '/get-upload-url',
+    '/get-upload-signature',
     authController.allowedTo('admin', 'teacher'),
-    videoUploadController.getUploadUrl
+    videoUploadController.getUploadSignature
 );
 
 router
