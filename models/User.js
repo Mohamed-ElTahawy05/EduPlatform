@@ -15,15 +15,15 @@ const userSchema = new mongoose.Schema(
         trim: true,
             },
         phone: {
-            type: String,
-            required: [true, 'Please provide your phone number'],
-            unique: [true,'this phone is already existed'],
-            trim: true,
-            match: [
-                /^(\+20|0)?1[0125][0-9]{8}$/,
-                'Please enter a valid Egyptian phone number',
-            ],
-        },
+    type: String,
+    required: [true, 'Please provide your phone number'],
+    unique: true,
+    trim: true,
+    match: [
+        /^(\+20|0)?1[0125][0-9]{8}$/,
+        'Please enter a valid Egyptian phone number',
+    ],
+},
 
         grade: {
     type: mongoose.Schema.Types.ObjectId,
